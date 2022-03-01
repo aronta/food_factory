@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\MealCollection;
 use App\Models\Category;
 use App\Models\Meal;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -59,67 +60,25 @@ class MealsController extends Controller
         }
 
         $lang = $validated['lang'];
-        
-        if(isset($validated['per_page'])){
-            $meals = Meal::paginate($validated['per_page'])->withQueryString();
+
+        $meals = Meal::when($request->category, function ($query) use ($request) {
+                return $query->mealCategoryFilter($request->category);
+        })->when($request->tags, function ($query) use ($request) {
+                return $query->mealTagFilter($request->tags);
+        })->when($request->diff_time, function ($query) use ($request) {
+                return $query->mealAfterTimeStampFilter(Carbon::createFromTimestamp($request->diff_time)->toDateTimeString());
+        });
+
+        if($request->per_page){
+             $meals = $meals->paginate($validated['per_page'])->withQueryString();
         } else {
-            $meals = Meal::all();
+            $meals = $meals->get();
         }
 
         $meals->each(function ($meal) use ($lang){
             $meal->title = $meal->{'title:'.$lang};
             $meal->description = $meal->{'description:'.$lang};
         });
-        
-        if(isset($validated['tags'])){
-            $filter_tags = array_map('intval', $validated['tags']);
-            $meals->each(function ($meal, $key) use ($meals, $filter_tags) {
-                $meal_tags_ids = $meal->tags->pluck('id')->toArray();
-                if (!array_diff($filter_tags, $meal_tags_ids)) {
-                } else {
-                    $meals->forget($key);
-                }
-            });
-        
-            #$meals->setCollection($meals->values());
-            #dd($meals->getCollection());
-        }
-
-        if(isset($validated['category'])){
-            $category = $validated['category'];
-            if ($category == 'NULL') {
-                $meals->each(function ($meal, $key) use ($meals)  {
-                    if ($meal->category_id != null) {
-                        $meals->forget($key);
-                    }
-                });
-            } else if ($category == '!NULL'){
-                $meals->each(function ($meal, $key) use ($meals) {
-                    if ($meal->category_id == null) {
-                        $meals->forget($key);
-                    }
-                });
-            } else {
-                $category = (int) $category;
-                $meals->each(function ($meal, $key) use ($category, $meals)  {
-                    if ($meal->category_id != $category){
-                        $meals->forget($key);
-                    }
-                });
-            }
-        }
-
-        if (isset($validated['diff_time'])){
-            #$meals = $meals->withTrashed();
-            $diff_time = (int) $validated['diff_time'];
-            $meals->each(function ($meal, $key) use ($meals, $diff_time)  {
-               #dd($meal->created_at->timestamp);
-               if ($meal->created_at->timestamp < $diff_time || $meal->created_at->timestamp < $diff_time){
-                    $meals->forget($key);
-               }
-            });
-
-        }
 
         # Lazy eager loading relations connected to Meal if needed - WITH
         if (isset($validated['with'])){
