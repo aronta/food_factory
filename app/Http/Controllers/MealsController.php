@@ -72,7 +72,8 @@ class MealsController extends Controller
         if($request->per_page){
              $meals = $meals->paginate($validated['per_page'])->withQueryString();
         } else {
-            $meals = $meals->get();
+            #$meals = $meals->get();
+            $meals = $meals->paginate()->withQueryString();
         }
 
         $meals->each(function ($meal) use ($lang){
