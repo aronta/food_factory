@@ -44,14 +44,11 @@ class Meal extends Model implements TranslatableContract
     }
 
     public function scopeMealTagFilter($query, $tags){
+
         $tags = array_map('intval', explode(',', $tags));
         return $query->whereHas('tags', function ($query) use ($tags) {
-            $query->where(function ($query) use ($tags) {
-                foreach ($tags as $tag) {
-                    $query->orWhere('tag_id', '=', $tag);
-                }
-            });
-        });
+            $query->whereIn('tag_id', $tags);
+        }, '=', count($tags));
     }
 
     public function scopeMealAfterTimeStampFilter($query, $diff_time){
